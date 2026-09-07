@@ -560,7 +560,15 @@ class SerenaAgent:
             client_cwd = get_client_working_directory()
             if client_cwd is None or client_cwd == self._last_client_cwd:
                 return
+            is_first_observation = self._last_client_cwd is None
             self._last_client_cwd = client_cwd
+
+            if is_first_observation and self.get_active_project() is not None:
+                # The baseline could not be established at startup (e.g. the client process was not identifiable
+                # back then). Treat this first observation as the baseline instead of a change, so that an
+                # explicitly configured project is never overridden.
+                log.debug("Established client working directory baseline as %s", client_cwd)
+                return
 
             project_root = find_project_root_marker(start=client_cwd)
             if project_root is None:

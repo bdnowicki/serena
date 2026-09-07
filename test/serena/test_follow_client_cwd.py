@@ -113,8 +113,26 @@ class TestFollowClientWorkingDirectory:
             agent.follow_client_working_directory_if_changed()
         assert agent.activated == []
 
+    def test_first_observation_does_not_override_active_project(self, worktree):
+        """If no baseline could be established at startup, the first observation must not switch the project."""
+        agent = _AgentStub(follow_client_cwd=True, active_project_root=str(worktree.parent))
+        assert agent._last_client_cwd is None
+        with patch("serena.agent.get_client_working_directory", return_value=str(worktree)):
+            agent.follow_client_working_directory_if_changed()
+        assert agent.activated == []
+        assert agent._last_client_cwd == str(worktree)
+
+    def test_first_observation_activates_when_no_project_is_active(self, worktree):
+        """Without an active project there is nothing to protect, so the first observation activates it."""
+        agent = _AgentStub(follow_client_cwd=True, active_project_root=None)
+        with patch("serena.agent.get_client_working_directory", return_value=str(worktree)):
+            agent.follow_client_working_directory_if_changed()
+        assert len(agent.activated) == 1
+        assert os.path.samefile(agent.activated[0], worktree)
+
     def test_activates_project_of_new_client_cwd(self, worktree):
         agent = _AgentStub(follow_client_cwd=True, active_project_root=str(worktree.parent))
+        agent._last_client_cwd = str(worktree.parent)  # baseline established at startup
         with patch("serena.agent.get_client_working_directory", return_value=str(worktree)):
             agent.follow_client_working_directory_if_changed()
         assert len(agent.activated) == 1
@@ -157,6 +175,7 @@ class TestFollowClientWorkingDirectory:
             roots.append(path)
 
         agent = _AgentStub(follow_client_cwd=True, active_project_root=str(roots[0]))
+        agent._last_client_cwd = str(roots[0])  # baseline established at startup
         for target in (roots[1], roots[0], roots[1]):
             with patch("serena.agent.get_client_working_directory", return_value=str(target)):
                 agent.follow_client_working_directory_if_changed()
