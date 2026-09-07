@@ -407,11 +407,13 @@ class SerenaConfig(ToolInclusionDefinition, ToStringMixin):
     web_dashboard_open_on_launch: bool = True
     web_dashboard_listen_address: str = "127.0.0.1"
     tool_timeout: float = DEFAULT_TOOL_TIMEOUT
-    follow_client_cwd: bool = False
+    follow_client_cwd: bool = True
     """
     whether to automatically activate the project corresponding to the working directory of the client process
     (e.g. Claude Code) whenever it changes, which allows the client to switch between git worktrees without
-    restarting the MCP server
+    restarting the MCP server.
+    Only changes of the client's working directory are followed; the directory in which the client happens to be
+    at startup never overrides the project the server was started with.
     """
     loaded_commented_yaml: CommentedMap | None = None
     config_file_path: str | None = None

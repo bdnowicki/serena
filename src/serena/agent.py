@@ -285,6 +285,16 @@ class SerenaAgent:
             except Exception as e:
                 log.error(f"Error activating project '{project}' at startup: {e}", exc_info=e)
 
+        # Record the client's current working directory as the baseline, such that only subsequent *changes*
+        # of that directory cause a project switch; the directory the client happens to be in at startup must
+        # not override the project the server was explicitly started with.
+        if self.serena_config.follow_client_cwd:
+            try:
+                self._last_client_cwd = get_client_working_directory()
+                log.info("Following the client's working directory (baseline: %s)", self._last_client_cwd)
+            except Exception as e:
+                log.error(f"Error determining the client's working directory: {e}", exc_info=e)
+
         # start the dashboard (web frontend), registering its log handler
         # should be the last thing to happen in the initialization since the dashboard
         # may access various parts of the agent

@@ -88,11 +88,29 @@ def worktree(tmp_path):
 
 
 class TestFollowClientWorkingDirectory:
-    def test_disabled_by_default_does_nothing(self, worktree):
+    def test_enabled_by_default(self):
+        """The option is enabled by default, so switching worktrees works without extra configuration."""
+        from serena.config.serena_config import SerenaConfig
+
+        assert SerenaConfig().follow_client_cwd is True
+
+    def test_can_be_disabled(self, worktree):
         agent = _AgentStub(follow_client_cwd=False)
         with patch("serena.agent.get_client_working_directory", return_value=str(worktree)) as mock_cwd:
             agent.follow_client_working_directory_if_changed()
         mock_cwd.assert_not_called()
+        assert agent.activated == []
+
+    def test_startup_directory_does_not_override_active_project(self, worktree):
+        """A baseline recorded at startup must prevent the client's initial directory from switching the project."""
+        other_project = worktree.parent / "explicit"
+        other_project.mkdir()
+        (other_project / ".git").mkdir()
+
+        agent = _AgentStub(follow_client_cwd=True, active_project_root=str(other_project))
+        agent._last_client_cwd = str(worktree)  # baseline as recorded at startup
+        with patch("serena.agent.get_client_working_directory", return_value=str(worktree)):
+            agent.follow_client_working_directory_if_changed()
         assert agent.activated == []
 
     def test_activates_project_of_new_client_cwd(self, worktree):

@@ -33,20 +33,21 @@ Perform [pre-indexing of your project](indexing) to avoid having to re-index per
 
 ### Switching worktrees within a running session
 
-By default, Serena determines the project once, when the MCP server process starts. Clients such as Claude Code
-can change their working directory during a session (e.g. via the `EnterWorktree` tool) without restarting the
-MCP server, in which case Serena would keep working on the original directory.
+Clients such as Claude Code can change their working directory during a session (e.g. via the `EnterWorktree`
+tool) without restarting the MCP server. Serena follows such changes automatically: before each tool call, it
+checks the working directory of the client process and, when it points into a different project, activates that
+project (shutting down the previous project's language servers).
 
-Enable `follow_client_cwd` to make Serena follow the client:
+This is controlled by the `follow_client_cwd` option, which is **enabled by default**. Only *changes* of the
+client's working directory are followed, so the directory the client happens to be in at startup never overrides
+the project the server was started with. Directories that are neither a Serena project nor a git repository are
+ignored, so changing into an unrelated directory does not switch the project.
+
+To disable it, set `follow_client_cwd: false` in `serena_config.yml` or pass `--no-follow-client-cwd`:
 
 ```shell
-serena start-mcp-server --context claude-code --project-from-cwd --follow-client-cwd
+serena start-mcp-server --context claude-code --project-from-cwd --no-follow-client-cwd
 ```
-
-or set `follow_client_cwd: true` in `serena_config.yml`. Serena then checks the working directory of the client
-process before each tool call and, when it points into a different project, activates that project automatically
-(shutting down the previous project's language servers). Directories that are neither a Serena project nor a git
-repository are ignored, so changing into an unrelated directory does not switch the project.
 
 Note that switching restarts the language servers for the new project, so the first tool call after a switch is
 slower; the symbol cache of each worktree is separate.

@@ -45,6 +45,13 @@ trace_lsp_communication: False
 # whether to trace the communication between Serena and the language servers.
 # This is useful for debugging language server issues.
 
+follow_client_cwd: True
+# whether to automatically activate the project matching the working directory of the client process
+# (e.g. Claude Code) whenever that directory changes. This allows switching between git worktrees within a
+# running session, because the client does not restart the MCP server when it changes directory.
+# Only *changes* are followed: the directory the client is in at startup never overrides the project that
+# Serena was started with. Directories that are neither a Serena project nor a git repository are ignored.
+
 ls_specific_settings: {}
 # Added on 23.08.2025
 # Advanced configuration option allowing to configure language server implementation specific options. Maps the language
