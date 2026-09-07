@@ -262,10 +262,19 @@ class SolidLanguageServerHandler:
     def _terminate_or_kill_process(self, process: subprocess.Popen[bytes]) -> None:
         """Try to terminate the process gracefully, then forcefully if necessary."""
         # First try to terminate the process tree gracefully
-        self._signal_process_tree(process, terminate=True)
+        self.signal_process_tree(process, terminate=True)
 
-    def _signal_process_tree(self, process: subprocess.Popen[bytes], terminate: bool = True) -> None:
-        """Send signal (terminate or kill) to the process and all its children."""
+    def signal_process_tree(self, process: subprocess.Popen[bytes], terminate: bool = True) -> None:
+        """
+        Sends a signal (terminate or kill) to the process and all its children.
+
+        This is required because the language server process is started via a shell, so the actual
+        language server is a grandchild of this process; signalling the direct child alone would
+        leave the language server running.
+
+        :param process: the process whose tree shall be signalled
+        :param terminate: whether to terminate (True) or forcefully kill (False) the processes
+        """
         signal_method = "terminate" if terminate else "kill"
 
         # Try to get the parent process

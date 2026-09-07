@@ -432,8 +432,10 @@ class SolidLanguageServer(ABC):
             # Ignore errors here, we are proceeding to terminate anyway.
 
         # Stage 2: Terminate and Wait for Process to Exit
-        log.debug(f"Terminating process {process.pid}, current status: {process.poll()}")
-        process.terminate()
+        # NOTE: the whole process tree must be signalled, because the language server is started via a
+        # shell and is therefore a grandchild of `process`; signalling `process` alone would orphan it.
+        log.debug(f"Terminating process tree of {process.pid}, current status: {process.poll()}")
+        self.server.signal_process_tree(process, terminate=True)
 
         # Stage 3: Wait for process termination with timeout
         try:
@@ -442,8 +444,8 @@ class SolidLanguageServer(ABC):
             log.info(f"Language server process terminated successfully with exit code {exit_code}.")
         except subprocess.TimeoutExpired:
             # If termination failed, forcefully kill the process
-            log.warning(f"Process {process.pid} termination timed out, killing process forcefully...")
-            process.kill()
+            log.warning(f"Process {process.pid} termination timed out, killing process tree forcefully...")
+            self.server.signal_process_tree(process, terminate=False)
             try:
                 exit_code = process.wait(timeout=2.0)
                 log.info(f"Language server process killed successfully with exit code {exit_code}.")
