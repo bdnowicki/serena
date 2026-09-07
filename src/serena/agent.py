@@ -9,6 +9,7 @@ import sys
 import webbrowser
 from collections.abc import Callable
 from logging import Logger
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, TypeVar
 
 from sensai.util import logging
@@ -25,6 +26,8 @@ from serena.project import Project
 from serena.prompt_factory import SerenaPromptFactory
 from serena.task_executor import TaskExecutor
 from serena.tools import ActivateProjectTool, GetCurrentConfigTool, ReplaceContentTool, Tool, ToolMarker, ToolRegistry
+from serena.util.client_cwd import get_client_working_directory
+from serena.util.file_system import find_project_root_marker
 from serena.util.gui import system_has_usable_display
 from serena.util.inspection import iter_subclasses
 from serena.util.logging import MemoryLogHandler
@@ -188,6 +191,7 @@ class SerenaAgent:
 
         # project-specific instances, which will be initialized upon project activation
         self._active_project: Project | None = None
+        self._last_client_cwd: str | None = None
 
         # adjust log level
         serena_log_level = self.serena_config.log_level
@@ -532,8 +536,48 @@ class SerenaAgent:
         """
         return self.serena_config.language_backend == LanguageBackend.LSP
 
+    def follow_client_working_directory_if_changed(self) -> None:
+        """
+        Activates the project corresponding to the client's current working directory if the client
+        (e.g. Claude Code) has changed it since the last check, which allows the client to switch between
+        git worktrees without the MCP server being restarted.
+
+        Does nothing unless the `follow_client_cwd` option is enabled. Never raises.
+        """
+        if not self.serena_config.follow_client_cwd:
+            return
+        try:
+            client_cwd = get_client_working_directory()
+            if client_cwd is None or client_cwd == self._last_client_cwd:
+                return
+            self._last_client_cwd = client_cwd
+
+            project_root = find_project_root_marker(start=client_cwd)
+            if project_root is None:
+                log.debug("Client working directory %s is not within a project; not switching", client_cwd)
+                return
+
+            active_project = self.get_active_project()
+            if active_project is not None and Path(active_project.project_root).resolve() == Path(project_root).resolve():
+                return
+
+            log.info("Client working directory changed to %s; activating project at %s", client_cwd, project_root)
+            self.activate_project_from_path_or_name(project_root)
+        except Exception as e:
+            log.error(f"Error following the client's working directory: {e}", exc_info=e)
+
     def _activate_project(self, project: Project) -> None:
         log.info(f"Activating {project.project_name} at {project.project_root}")
+        previous_project = self._active_project
+        if previous_project is not None and previous_project is not project:
+            # shut down the previous project's language servers; without this, their processes would
+            # keep running for the lifetime of the server process (and would be restarted anyway when
+            # the project is activated again)
+            log.info(f"Shutting down previously active project {previous_project.project_name}")
+            try:
+                previous_project.shutdown()
+            except Exception as e:
+                log.error(f"Error shutting down previously active project: {e}", exc_info=e)
         self._active_project = project
         self._update_active_tools()
 

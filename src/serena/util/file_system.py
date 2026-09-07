@@ -349,3 +349,53 @@ def match_path(relative_path: str, path_spec: PathSpec, root_path: str = "") -> 
     if os.path.isdir(abs_path) and not normalized_path.endswith("/"):
         normalized_path = normalized_path + "/"
     return path_spec.match_file(normalized_path)
+
+
+def find_project_root_marker(start: str | Path | None = None, boundary: str | Path | None = None) -> str | None:
+    """
+    Finds the root directory of the project containing the given directory by walking up the directory tree,
+    looking for an explicit Serena project configuration (`.serena/project.yml`) first and a git root (`.git`) second.
+
+    :param start: the directory to start the search from; defaults to the current working directory
+    :param boundary: if provided, constrains the search to this directory and below
+        (acts as a virtual filesystem root); the search stops at this boundary
+    :return: the absolute path to the project root or None if no marker was found
+    """
+    current = (Path(start) if start is not None else Path.cwd()).resolve()
+    boundary_path = Path(boundary).resolve() if boundary is not None else None
+
+    def ancestors() -> Iterator[Path]:
+        """Yield the starting directory and its ancestors up to the boundary."""
+        yield current
+        for parent in current.parents:
+            yield parent
+            if boundary_path is not None and parent == boundary_path:
+                return
+
+    # First pass: look for an explicit Serena project configuration
+    for directory in ancestors():
+        if (directory / ".serena" / "project.yml").is_file():
+            return str(directory)
+
+    # Second pass: look for a git repository root
+    for directory in ancestors():
+        if (directory / ".git").exists():  # .git can be a file (worktree) or a directory
+            return str(directory)
+
+    return None
+
+
+def find_project_root(start: str | Path | None = None, boundary: str | Path | None = None) -> str:
+    """
+    Finds the root directory of the project containing the given directory, falling back to the
+    starting directory itself if no project marker is found.
+
+    :param start: the directory to start the search from; defaults to the current working directory
+    :param boundary: if provided, constrains the search to this directory and below
+        (acts as a virtual filesystem root); the search stops at this boundary
+    :return: the absolute path to the project root
+    """
+    root = find_project_root_marker(start=start, boundary=boundary)
+    if root is not None:
+        return root
+    return str((Path(start) if start is not None else Path.cwd()).resolve())

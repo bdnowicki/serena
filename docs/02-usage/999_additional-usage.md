@@ -30,3 +30,23 @@ should not occur too often, unless the task is very large or complicated.
 When it comes to serena AND git-worktree AND larger projects (that take longer to index), 
 the recommended way is to COPY your `$ORIG_PROJECT/.serena/cache` to `$GIT_WORKTREE/.serena/cache`. 
 Perform [pre-indexing of your project](indexing) to avoid having to re-index per each worktree you create. 
+
+### Switching worktrees within a running session
+
+By default, Serena determines the project once, when the MCP server process starts. Clients such as Claude Code
+can change their working directory during a session (e.g. via the `EnterWorktree` tool) without restarting the
+MCP server, in which case Serena would keep working on the original directory.
+
+Enable `follow_client_cwd` to make Serena follow the client:
+
+```shell
+serena start-mcp-server --context claude-code --project-from-cwd --follow-client-cwd
+```
+
+or set `follow_client_cwd: true` in `serena_config.yml`. Serena then checks the working directory of the client
+process before each tool call and, when it points into a different project, activates that project automatically
+(shutting down the previous project's language servers). Directories that are neither a Serena project nor a git
+repository are ignored, so changing into an unrelated directory does not switch the project.
+
+Note that switching restarts the language servers for the new project, so the first tool call after a switch is
+slower; the symbol cache of each worktree is separate.

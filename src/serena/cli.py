@@ -5,7 +5,6 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterator
 from logging import Logger
 from pathlib import Path
 from typing import Any, Literal
@@ -30,6 +29,7 @@ from serena.constants import (
 from serena.mcp import SerenaMCPFactory
 from serena.project import Project
 from serena.tools import FindReferencingSymbolsTool, FindSymbolTool, GetSymbolsOverviewTool, SearchForPatternTool, ToolRegistry
+from serena.util.file_system import find_project_root as _find_project_root
 from serena.util.logging import MemoryLogHandler
 from solidlsp.ls_config import Language
 from solidlsp.util.subprocess_util import subprocess_kwargs
@@ -47,29 +47,7 @@ def find_project_root(root: str | Path | None = None) -> str:
                  (acts as a virtual filesystem root). Search stops at this boundary.
     :return: absolute path to project root (falls back to CWD if no marker found)
     """
-    current = Path.cwd().resolve()
-    boundary = Path(root).resolve() if root is not None else None
-
-    def ancestors() -> Iterator[Path]:
-        """Yield current directory and ancestors up to boundary."""
-        yield current
-        for parent in current.parents:
-            yield parent
-            if boundary is not None and parent == boundary:
-                return
-
-    # First pass: look for .serena
-    for directory in ancestors():
-        if (directory / ".serena" / "project.yml").is_file():
-            return str(directory)
-
-    # Second pass: look for .git
-    for directory in ancestors():
-        if (directory / ".git").exists():  # .git can be file (worktree) or dir
-            return str(directory)
-
-    # Fall back to CWD
-    return str(current)
+    return _find_project_root(boundary=root)
 
 
 # --------------------- Utilities -------------------------------------
@@ -188,6 +166,12 @@ class TopLevelCommands(AutoRegisteringGroup):
     @click.option("--trace-lsp-communication", type=bool, is_flag=False, default=None, help="Whether to trace LSP communication.")
     @click.option("--tool-timeout", type=float, default=None, help="Override tool execution timeout in config.")
     @click.option(
+        "--follow-client-cwd/--no-follow-client-cwd",
+        default=None,
+        help="Automatically activate the project matching the client's working directory whenever it changes "
+        "(allows switching between git worktrees without restarting the server).",
+    )
+    @click.option(
         "--project-from-cwd",
         is_flag=True,
         default=False,
@@ -208,6 +192,7 @@ class TopLevelCommands(AutoRegisteringGroup):
         log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None,
         trace_lsp_communication: bool | None,
         tool_timeout: float | None,
+        follow_client_cwd: bool | None,
     ) -> None:
         # initialize logging, using INFO level initially (will later be adjusted by SerenaAgent according to the config)
         #   * memory log handler (for use by GUI/Dashboard)
@@ -248,6 +233,7 @@ class TopLevelCommands(AutoRegisteringGroup):
             log_level=log_level,
             trace_lsp_communication=trace_lsp_communication,
             tool_timeout=tool_timeout,
+            follow_client_cwd=follow_client_cwd,
         )
         if project_file_arg:
             log.warning(

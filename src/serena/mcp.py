@@ -277,6 +277,7 @@ class SerenaMCPFactory:
         log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None,
         trace_lsp_communication: bool | None = None,
         tool_timeout: float | None = None,
+        follow_client_cwd: bool | None = None,
     ) -> FastMCP:
         """
         Create an MCP server with process-isolated SerenaAgent to prevent asyncio contamination.
@@ -292,6 +293,8 @@ class SerenaMCPFactory:
         :param trace_lsp_communication: Whether to trace the communication between Serena and the language servers.
             This is useful for debugging language server issues.
         :param tool_timeout: Timeout in seconds for tool execution. If not specified, will take the value from the serena configuration.
+        :param follow_client_cwd: Whether to automatically activate the project matching the client's working directory
+            whenever it changes. If not specified, will take the value from the serena configuration.
         """
         try:
             config = self._create_default_serena_config()
@@ -308,6 +311,8 @@ class SerenaMCPFactory:
                 config.trace_lsp_communication = trace_lsp_communication
             if tool_timeout is not None:
                 config.tool_timeout = tool_timeout
+            if follow_client_cwd is not None:
+                config.follow_client_cwd = follow_client_cwd
             if language_backend is not None:
                 config.language_backend = language_backend
 

@@ -407,6 +407,12 @@ class SerenaConfig(ToolInclusionDefinition, ToStringMixin):
     web_dashboard_open_on_launch: bool = True
     web_dashboard_listen_address: str = "127.0.0.1"
     tool_timeout: float = DEFAULT_TOOL_TIMEOUT
+    follow_client_cwd: bool = False
+    """
+    whether to automatically activate the project corresponding to the working directory of the client process
+    (e.g. Claude Code) whenever it changes, which allows the client to switch between git worktrees without
+    restarting the MCP server
+    """
     loaded_commented_yaml: CommentedMap | None = None
     config_file_path: str | None = None
     """
@@ -543,6 +549,7 @@ class SerenaConfig(ToolInclusionDefinition, ToStringMixin):
         instance.web_dashboard_open_on_launch = get_value_or_default("web_dashboard_open_on_launch")
         instance.tool_timeout = get_value_or_default("tool_timeout")
         instance.trace_lsp_communication = get_value_or_default("trace_lsp_communication")
+        instance.follow_client_cwd = get_value_or_default("follow_client_cwd")
         instance.excluded_tools = get_value_or_default("excluded_tools")
         instance.included_optional_tools = get_value_or_default("included_optional_tools")
         instance.token_count_estimator = get_value_or_default("token_count_estimator")

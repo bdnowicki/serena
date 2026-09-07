@@ -223,6 +223,9 @@ class Tool(Component):
         """
         Applies the tool with logging and exception handling, using the given keyword arguments
         """
+        # Follow the client's working directory (if enabled) before the tool task is queued, such that
+        # a project switch (and the corresponding language server startup) is scheduled ahead of the tool task.
+        self.agent.follow_client_working_directory_if_changed()
 
         def task() -> str:
             apply_fn = self.get_apply_fn()
