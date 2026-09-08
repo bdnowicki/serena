@@ -25,6 +25,55 @@ Instead, it can use code-centric tools like `find_symbol`, `find_referencing_sym
 > [!TIP]
 > The [**Serena JetBrains plugin**](#the-serena-jetbrains-plugin) has been released!
 
+> [!NOTE]
+> This is a fork of [oraios/serena](https://github.com/oraios/serena). It adds **automatic project
+> switching when the client changes its working directory**, so that switching git worktrees inside a
+> running Claude Code session switches Serena's project too. See [Fork changes](#fork-changes).
+
+## Fork changes
+
+### Following the client's working directory (`follow_client_cwd`)
+
+Serena normally determines its project once, when the MCP server process starts. That is a problem for
+git worktrees: clients such as Claude Code change their working directory during a session (e.g. via the
+`EnterWorktree` tool) **without restarting the MCP server**, so Serena would keep analysing the worktree
+it started in, silently returning symbols from the wrong checkout.
+
+This fork closes that gap. Before each tool call, Serena reads the working directory of the client
+process and, when it points into a different project, activates that project and shuts down the previous
+project's language servers. No reconnect, no restart, and nothing to configure — the option
+`follow_client_cwd` is **enabled by default**:
+
+```shell
+serena start-mcp-server --context claude-code --project-from-cwd
+```
+
+To turn it off, set `follow_client_cwd: false` in `serena_config.yml` or pass `--no-follow-client-cwd`.
+
+Details worth knowing:
+
+* **Only *changes* are followed.** The directory the client happens to be in at startup never overrides
+  the project the server was started with, so `--project <path>` keeps working as before.
+* **Directories without a project marker are ignored.** A directory that is neither a Serena project
+  (`.serena/project.yml`) nor a git repository does not trigger a switch, so changing into an unrelated
+  directory is harmless.
+* **The client is detected by walking up the process tree**, since it is usually not the direct parent
+  (`uv` or a shell sits in between). If it cannot be identified — a client other than the supported ones,
+  or a platform that denies reading another process's working directory — the feature simply does nothing.
+* **The first tool call after a switch is slower**, because the language servers for the new project have
+  to start. Each worktree keeps its own symbol cache under `<worktree>/.serena/cache`.
+
+Note that a worktree is a fresh checkout: if Serena is installed as a git submodule, that submodule is
+**not** initialised there (`git worktree add` does not recurse into submodules) and the server will fail
+to start. Either run `git submodule update --init` inside the worktree, or install Serena via
+`uvx --from git+<repository>` instead, which has no such problem.
+
+### Terminating the whole language server process tree
+
+Language servers are started through a shell, so on Windows the direct child process is the shell and the
+language server itself is a grandchild. Shutdown now signals the entire process tree rather than just the
+direct child, which matters when project switching stops and starts language servers repeatedly.
+
 ## LLM Integration
 
 Serena provides the necessary [tools](https://oraios.github.io/serena/01-about/035_tools.html) for coding workflows, but an LLM is required to do the actual work,
